@@ -52,34 +52,6 @@ class CameraLidarProjector(object):
         
         assert self._intrinsic_cam is None, "self._intrinsic_cam is None"
 
-# Function to create rotation matrix from AlZeKa angles and traslation vector
-def create_transformation_mat_from_IPIeuler(alpha: float, zeta: float, kappa: float, translation: np.ndarray) -> np.ndarray:
-    
-    a = alpha 
-    z = zeta
-    k = kappa
-    cos = np.cos
-    sin = np.sin
-    
-    R = np.zeros((3, 3))
-    R[0, 0] = cos(a)*cos(z)*cos(k) - sin(a)*sin(k)
-    R[0, 1] = -cos(a)*cos(z)*sin(k) - sin(a)*cos(k)
-    R[0, 2] = cos(a)*sin(z)
-
-    R[1, 0] = sin(a)*cos(z)*cos(k)+cos(a)*sin(k)
-    R[1, 1] = -sin(a)*cos(z)*sin(k)+cos(a)*cos(k)
-    R[1, 2] = sin(a)*sin(z)
-
-    R[2, 0] = -sin(z)*cos(k)
-    R[2, 1] = sin(z)*sin(k)
-    R[2, 2] = cos(z)
-    
-    translation = np.expand_dims(translation, 1)
-    R = np.hstack((R, translation))
-    tmp = np.array([0, 0, 0, 1])
-    R = np.vstack((R, tmp))
-
-    return R
 
 if __name__=="__main__":
 

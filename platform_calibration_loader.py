@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import pandas as pd
 
 class MonoCamera(object):
 
@@ -69,20 +70,26 @@ class PlatformCalibrationLoader(object):
     """
     def __init__(self) -> None:
         
-        self._stereo_camera = StereoCamera()
+        self.__stereo_camera = StereoCamera()
 
         # rotation matrix of the camera (left camera) in the platform coordinate system (pcs)
-        self._camera_on_pcs_mat: np.ndarray = None
+        self.__camera_on_pcs_mat: np.ndarray = None
         # rotation matrix of the lidar in the platform coordinate system (pcs)
-        self._lidar_on_pcs_mat: np.ndarray = None
+        self.__lidar_on_pcs_mat: np.ndarray = None
     
     def set_camera_on_pcs_mat(self, camera_on_pcs_mat: np.ndarray) -> None:
         
-        self._camera_on_pcs_mat = camera_on_pcs_mat
+        self.__camera_on_pcs_mat = camera_on_pcs_mat
 
     def set_lidar_on_pcs_mat(self, lidar_on_pcs_mat: np.ndarray) -> None:
 
-        self._lidar_on_pcs_mat = lidar_on_pcs_mat
+        self.__lidar_on_pcs_mat = lidar_on_pcs_mat
+
+    def get_camera_on_pcs_mat(self) -> np.ndarray:
+        return self.__camera_on_pcs_mat
+    
+    def get_lidar_on_pcs_mat(self) -> np.ndarray:
+        return self.__lidar_on_pcs_mat
     
     def parse_stereo_camera_calibration(self, intrinsic_camera_calibration_file: str, \
                                         extrinsic_camera_calibration_file: str) -> None:
@@ -90,22 +97,75 @@ class PlatformCalibrationLoader(object):
         in_calib_data = cv2.FileStorage(intrinsic_camera_calibration_file, cv2.FILE_STORAGE_READ)
         ex_calib_data = cv2.FileStorage(extrinsic_camera_calibration_file, cv2.FILE_STORAGE_READ)
 
-        self._stereo_camera.get_left_camera().set_camera_matrix(in_calib_data.getNode("M1").mat())
-        self._stereo_camera.get_left_camera().set_distortion_coeff(in_calib_data.getNode("D1").mat())
+        self.__stereo_camera.get_left_camera().set_camera_matrix(in_calib_data.getNode("M1").mat())
+        self.__stereo_camera.get_left_camera().set_distortion_coeff(in_calib_data.getNode("D1").mat())
 
-        self._stereo_camera.get_right_camera().set_camera_matrix(in_calib_data.getNode("M2").mat())
-        self._stereo_camera.get_right_camera().set_distortion_coeff(in_calib_data.getNode("D2").mat())
+        self.__stereo_camera.get_right_camera().set_camera_matrix(in_calib_data.getNode("M2").mat())
+        self.__stereo_camera.get_right_camera().set_distortion_coeff(in_calib_data.getNode("D2").mat())
 
-        self._stereo_camera.set_relative_rotation(ex_calib_data.getNode("R").mat())
-        self._stereo_camera.set_relative_translation(ex_calib_data.getNode("T").mat())
+        self.__stereo_camera.set_relative_rotation(ex_calib_data.getNode("R").mat())
+        self.__stereo_camera.set_relative_translation(ex_calib_data.getNode("T").mat())
+
+    @staticmethod
+    # Function to create rotation matrix from AlZeKa angles and traslation vector
+    def create_transformation_mat_from_IPIeuler(alpha: float, zeta: float, kappa: float, translation: np.ndarray) -> np.ndarray:
+        
+        a = alpha 
+        z = zeta
+        k = kappa
+        cos = np.cos
+        sin = np.sin
+        
+        R = np.zeros((3, 3))
+        R[0, 0] = cos(a)*cos(z)*cos(k) - sin(a)*sin(k)
+        R[0, 1] = -cos(a)*cos(z)*sin(k) - sin(a)*cos(k)
+        R[0, 2] = cos(a)*sin(z)
+
+        R[1, 0] = sin(a)*cos(z)*cos(k)+cos(a)*sin(k)
+        R[1, 1] = -sin(a)*cos(z)*sin(k)+cos(a)*cos(k)
+        R[1, 2] = sin(a)*sin(z)
+
+        R[2, 0] = -sin(z)*cos(k)
+        R[2, 1] = sin(z)*sin(k)
+        R[2, 2] = cos(z)
+        
+        translation = np.expand_dims(translation, 1)
+        R = np.hstack((R, translation))
+        tmp = np.array([0, 0, 0, 1])
+        R = np.vstack((R, tmp))
+
+        return R
 
     def parse_pcs_calibration(self, camera_on_pcs_calibration_file: str, \
                               lidar_on_pcs_calibration_file: str) -> None:
-        pass
+
+        # Parsing transformation matrix for camera on platform coordinate system
+        cam_on_pcs_calib_data = cv2.FileStorage(camera_on_pcs_calibration_file, cv2.FILE_STORAGE_READ)
+
+        alpha = cam_on_pcs_calib_data.getNode("angle1").real()
+        zeta = cam_on_pcs_calib_data.getNode("angle2").real()
+        kappa = cam_on_pcs_calib_data.getNode("angle3").real()
+        translation_vect = np.array([cam_on_pcs_calib_data.getNode(i).real() for i in ["X0obj", "Y0obj", "Z0obj"]])
+
+        cam_on_pcs_mat = PlatformCalibrationLoader.create_transformation_mat_from_IPIeuler(alpha, zeta, kappa, translation_vect)
+        self.set_camera_on_pcs_mat(cam_on_pcs_mat)
+
+        # Parsing transformation matrix for lidar on platform coordinate system
+        lidar_on_pcs_mat_pd = pd.read_csv(lidar_on_pcs_calibration_file)
+        lidar_on_pcs_mat = lidar_on_pcs_mat_pd.to_numpy()[:, :-1] # remove the last column - Timestamp
+        self.set_lidar_on_pcs_mat(lidar_on_pcs_mat)
+
+    def show_sensor_transformation_info(self):
+
+        print("Camera transformation matrix in PCS: ")
+        print(self.__camera_on_pcs_mat)
+
+        print("Lidar transformation matrix in PCS: ")
+        print(self.__lidar_on_pcs_mat)
 
     def get_stereo_camera(self):
 
-        return self._stereo_camera
+        return self.__stereo_camera
 
 if __name__=="__main__":
 
@@ -113,3 +173,7 @@ if __name__=="__main__":
     platform_calibration_loader.parse_stereo_camera_calibration("./calibration_data/intrinsics.txt", \
                                                                 "./calibration_data/extrinsics.txt")
     platform_calibration_loader.get_stereo_camera().show_calibration_info()
+
+    platform_calibration_loader.parse_pcs_calibration("./calibration_data/mounting.txt",\
+                                                      "./calibration_data/Hesai64_on_PCS_mat.csv")
+    platform_calibration_loader.show_sensor_transformation_info()
