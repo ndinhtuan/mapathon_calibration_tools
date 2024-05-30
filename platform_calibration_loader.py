@@ -43,10 +43,25 @@ class StereoCamera(object):
 
         self.__relative_translation = relative_translation
 
-    def get_left_camera(self) -> None:
+    def create_relative_orientation(self) -> None:
+
+        self.__relative_orientation = np.hstack((self.__relative_rotation, self.__relative_translation))
+        # homogeneous
+        self.__relative_orientation = np.vstack((self.__relative_orientation, np.array([[0, 0, 0, 1]])))
+
+    def get_relative_rotation(self) -> np.ndarray:
+        return self.__relative_rotation
+    
+    def get_relative_translation(self) -> np.ndarray:
+        return self.__relative_translation
+    
+    def get_relative_orientation(self) -> np.ndarray:
+        return self.__relative_orientation
+
+    def get_left_camera(self) -> MonoCamera:
         return self.__left_camera
 
-    def get_right_camera(self) -> None:
+    def get_right_camera(self) -> MonoCamera:
         return self.__right_camera
     
     def show_calibration_info(self) -> None:
@@ -60,13 +75,14 @@ class StereoCamera(object):
         print(self.__right_camera.get_distortion_coeff())
 
         print("Relative orientation: ")
-        print(self.__relative_rotation)
-        print(self.__relative_translation)
+        print(self.__relative_orientation)
 
 class PlatformCalibrationLoader(object):
     """
     Class PlatformCalibrationLoader is used for managing the calibration data from 
     the multi-sensor platform, including: stereo camera, lidar and platform itself.
+
+    Current setup : 1 stereo camera and 1 lidar
     """
     def __init__(self) -> None:
         
@@ -105,6 +121,7 @@ class PlatformCalibrationLoader(object):
 
         self.__stereo_camera.set_relative_rotation(ex_calib_data.getNode("R").mat())
         self.__stereo_camera.set_relative_translation(ex_calib_data.getNode("T").mat())
+        self.__stereo_camera.create_relative_orientation()
 
     @staticmethod
     # Function to create rotation matrix from AlZeKa angles and traslation vector
