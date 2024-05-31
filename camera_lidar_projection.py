@@ -1,8 +1,10 @@
 import numpy as np
+import open3d.visualization
 from plyfile import PlyData
 import pandas as pd
 import cv2
 from platform_calibration_loader import PlatformCalibrationLoader
+import open3d
 
 class CameraLidarProjector(object):
 
@@ -90,14 +92,48 @@ class CameraLidarProjector(object):
         if right_lidar_path is not None:
             self.__right_lidar_data = self.__load_lidar_data(right_lidar_path)
 
-    def transform_right_lidar_to_right_camera_coordinate(self) -> np.ndarray:
+    def transform_right_lidar_to_right_camera_coordinate(self, is_debug: bool=True) -> np.ndarray:
 
         assert self.__right_lidar_data is not None, "self.__right_lidar_data is None" 
         assert self.__right_img_data is not None, "self.__right_img_data is None"
 
+        if is_debug:
+            print("Debugging point cloud in lidar coordinate system")
+            _point_cloud = self.__right_lidar_data[:-1, :].T
+            print(_point_cloud.shape)
+            o3d_point_cloud = open3d.geometry.PointCloud()
+            o3d_point_cloud.points = open3d.utility.Vector3dVector(_point_cloud)
+            open3d.visualization.draw_geometries([o3d_point_cloud], window_name="lidar coordinate system")
+
         pcs_points = self.__transform_points_from_lidar_to_pcs(self.__right_lidar_data) 
+
+        if is_debug:
+            print("Debugging point cloud in platform coordinate system")
+            _point_cloud = pcs_points[:-1, :].T
+            print(_point_cloud.shape)
+            o3d_point_cloud = open3d.geometry.PointCloud()
+            o3d_point_cloud.points = open3d.utility.Vector3dVector(_point_cloud)
+            open3d.visualization.draw_geometries([o3d_point_cloud], window_name="platform coordinate system")
+
         left_camera_points = self.__transform_points_from_pcs_to_camera(pcs_points)
+
+        if is_debug:
+            print("Debugging point cloud in left camera coordinate system")
+            _point_cloud = left_camera_points[:-1, :].T
+            print(_point_cloud.shape)
+            o3d_point_cloud = open3d.geometry.PointCloud()
+            o3d_point_cloud.points = open3d.utility.Vector3dVector(_point_cloud)
+            open3d.visualization.draw_geometries([o3d_point_cloud], window_name="left camera coordinate system")
+
         right_camera_points = self.__transform_points_from_left_to_right_camera(left_camera_points)
+
+        if is_debug:
+            print("Debugging point cloud in left camera coordinate system")
+            _point_cloud = right_camera_points[:-1, :].T
+            print(_point_cloud.shape)
+            o3d_point_cloud = open3d.geometry.PointCloud()
+            o3d_point_cloud.points = open3d.utility.Vector3dVector(_point_cloud)
+            open3d.visualization.draw_geometries([o3d_point_cloud], window_name="right camera coordinate system")
 
         return right_camera_points
 
@@ -138,9 +174,9 @@ if __name__=="__main__":
     camera_lidar_projector.load_calibration_data(camera_intrinsics_file="./calibration_data/intrinsics.txt", camera_extrinsics_file="./calibration_data/extrinsics.txt",\
                                                  cam_on_pcs_file="./calibration_data/mounting.txt", lidar_on_pcs_file="./calibration_data/Hesai64_on_PCS_mat.csv")
     
-    right_camera_points = camera_lidar_projector.transform_right_lidar_to_right_camera_coordinate()
+    right_camera_points = camera_lidar_projector.transform_right_lidar_to_right_camera_coordinate(is_debug=False)
     right_camera_points = right_camera_points[:-1, :].T
-    right_camera_points = right_camera_points[right_camera_points[:, 0] > 0]
+    right_camera_points = right_camera_points[right_camera_points[:, 2] < 0]
     right_camera_points_depth = np.linalg.norm(right_camera_points, axis=1).astype(np.uint8)
 
     print(right_camera_points, right_camera_points.shape)

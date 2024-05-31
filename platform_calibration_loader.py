@@ -146,6 +146,14 @@ class PlatformCalibrationLoader(object):
         R[2, 1] = sin(z)*sin(k)
         R[2, 2] = cos(z)
         
+        # M = np.array([
+        #     [1.0, 0, 0],
+        #     [0, 1.0, 0],
+        #     [0, 0, -1.0]
+        # ])
+        # R = M @ R
+        # R = R @ M
+
         translation = np.expand_dims(translation, 1)
         R = np.hstack((R, translation))
         tmp = np.array([0, 0, 0, 1])
