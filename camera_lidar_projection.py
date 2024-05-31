@@ -113,11 +113,20 @@ class CameraLidarProjector(object):
     
     # list_points should be Nx2 dimention - N is a number of point
     def show_points_on_img(self, img: np.ndarray = None, list_points: np.ndarray = None, \
-                           saved_path: str = None) -> None:
+                           point_depth: np.ndarray = None, min_interested_depth: int = None, \
+                            max_interested_depth: int = None, saved_path: str = None) -> None:
 
-        for p in list_points:
+        point_depth = (((point_depth - min_interested_depth) / max_interested_depth) * 255).clip(0, 255).astype(np.uint8)
+        print(point_depth, type(point_depth), point_depth.dtype)
+        depth2color = cv2.applyColorMap(point_depth, cv2.COLORMAP_TURBO)
+        depth2color = np.squeeze(depth2color)
 
-            img = cv2.circle(img, p, 2, [255, 0, 0], -1)
+        for p, c in zip(list_points, depth2color):
+
+            img = cv2.circle(img, p, 2, c.tolist(), -1)
+
+        if saved_path is not None:
+            cv2.imwrite(saved_path, img)
         
         return img
 
@@ -131,6 +140,9 @@ if __name__=="__main__":
     
     right_camera_points = camera_lidar_projector.transform_right_lidar_to_right_camera_coordinate()
     right_camera_points = right_camera_points[:-1, :].T
+    right_camera_points = right_camera_points[right_camera_points[:, 0] > 0]
+    right_camera_points_depth = np.linalg.norm(right_camera_points, axis=1).astype(np.uint8)
+
     print(right_camera_points, right_camera_points.shape)
 
     right_img_points = camera_lidar_projector.get_projected_right_points(right_camera_points)
@@ -141,7 +153,7 @@ if __name__=="__main__":
     print(right_img_points, right_img_points.shape)
 
     right_img = camera_lidar_projector.get_right_img()
-    projected_right_img = camera_lidar_projector.show_points_on_img(right_img, right_img_points)
+    projected_right_img = camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img.png")
 
     cv2.imshow("projected_right_img", projected_right_img)
     cv2.waitKey(0)
