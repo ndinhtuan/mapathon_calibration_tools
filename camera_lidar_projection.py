@@ -158,7 +158,7 @@ class CameraLidarProjector(object):
         depth2color = np.squeeze(depth2color)
 
         for p, c in zip(list_points, depth2color):
-
+            
             img = cv2.circle(img, p, 2, c.tolist(), -1)
 
         if saved_path is not None:
@@ -184,9 +184,9 @@ if __name__=="__main__":
     right_img_points = camera_lidar_projector.get_projected_right_points(right_camera_points)
     right_img_points = np.array(right_img_points)
     right_img_points = np.squeeze(right_img_points, 1)
-    right_img_points = right_img_points.astype(int)
+    right_img_points = right_img_points.astype(np.int16)
 
-    print(right_img_points, right_img_points.shape)
+    print(right_img_points, right_img_points.shape, right_img_points.dtype)
 
     right_img = camera_lidar_projector.get_right_img()
     projected_right_img = camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img.png")
