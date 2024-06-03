@@ -153,7 +153,6 @@ class CameraLidarProjector(object):
                             max_interested_depth: int = None, saved_path: str = None) -> None:
 
         point_depth = (((point_depth - min_interested_depth) / max_interested_depth) * 255).clip(0, 255).astype(np.uint8)
-        print(point_depth, type(point_depth), point_depth.dtype)
         depth2color = cv2.applyColorMap(point_depth, cv2.COLORMAP_TURBO)
         depth2color = np.squeeze(depth2color)
 

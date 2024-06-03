@@ -118,4 +118,4 @@ if __name__=="__main__":
     camera_lidar_sync = CameraLidaSync(camera_timestamps_csv, lidar_data_dir)
 
     camera_lidar_sync.set_camera_timeshift(7828077.74834919)
-    camera_lidar_sync.sync(0, 28620, "camera_liar_sync.csv")
+    camera_lidar_sync.sync(0, 28620, "camera_lidar_sync.csv")
