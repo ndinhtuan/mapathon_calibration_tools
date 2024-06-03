@@ -42,10 +42,14 @@ class CameraLidarVerify(object):
             right_img_points = right_img_points.astype(np.int16)
 
             right_img = self.__camera_lidar_projector.get_right_img()
+            origin_img = right_img.copy()
             projected_right_img = self.__camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img.png")
 
             cv2.imshow("projected_right_img", projected_right_img)
-            cv2.waitKey(0)
+            cv2.imshow("origin image", origin_img)
+
+            if cv2.waitKey(0) & 0xFF == ord('q'):
+                break
 
 if __name__=="__main__":
 
