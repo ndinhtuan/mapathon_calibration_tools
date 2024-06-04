@@ -21,7 +21,7 @@ class CameraLidarVerify(object):
     def show_camera_lidar_projection(self, video_name: str = None) -> None:
 
         if video_name is not None:
-            out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*"MJPG"), 10, (640, 480))
+            out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*"MJPG"), 3, (640, 480))
         
         for sync_data in self.__camera_lidar_sync_data:
 
@@ -62,9 +62,11 @@ class CameraLidarVerify(object):
             else:
                 projected_right_img = cv2.resize(projected_right_img, (640, 480))
                 out.write(projected_right_img)
-            
-        out.release()
-        cv2.destroyAllWindows()
+
+        if video_name is not None :
+            out.release()
+        else:
+            cv2.destroyAllWindows()
 
 if __name__=="__main__":
 
@@ -76,4 +78,4 @@ if __name__=="__main__":
                                                  cam_on_pcs_file="./calibration_data/mounting.txt", lidar_on_pcs_file="./calibration_data/Hesai64_on_PCS_mat.csv")
     
     camera_lidar_verifier = CameraLidarVerify(img_data_dir, lidar_data_dir, camera_lidar_sync_file, camera_lidar_projector)
-    camera_lidar_verifier.show_camera_lidar_projection("demo.avi")
+    camera_lidar_verifier.show_camera_lidar_projection()

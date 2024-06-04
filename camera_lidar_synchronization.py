@@ -7,6 +7,7 @@ import os
 import csv
 from camera_lidar_projection import CameraLidarProjector
 import cv2
+import argparse
 
 class CameraLidaSync(object):
 
@@ -332,7 +333,7 @@ class CameraLidarSyncManual(object):
                 print("Lidar timestamp: ", self.__get_timestamp_ply(lidar_path))
                 print("Image timestamp: ", self.__camera_timestamps_csv[self.__camera_timestamps_csv[:, 0] == img_id])
 
-def main() -> None:
+def main(eps_timestamp_diff: float, save_file: str) -> None:
 
     camera_timestamps_csv = "/media/tuan/Daten/mapathon/mapathon_dataset/scenario_1_2/camera/processed_data/2023_08_16_09_01_55_1/image_timestamp_lisdt.csv"
     lidar_data_dir = "/media/tuan/Daten/mapathon/mapathon_dataset/scenario_1_2/Hesai64/LOCAL"
@@ -340,8 +341,8 @@ def main() -> None:
 
     # camera_lidar_sync.set_camera_timeshift(7828077.74834919) # This value is compute by subtraction between first GPS timestamp in bagfile and start time in bag file
     camera_lidar_sync.set_camera_timeshift(7828078.943195752) # This value is chosen by using manual_pick from CameraLidarSyncManual
-    camera_lidar_sync.set_eps_timestamp_different(0.01)
-    camera_lidar_sync.sync_manual(22, 0, 28620, "camera_lidar_sync.csv")
+    camera_lidar_sync.set_eps_timestamp_different(eps_timestamp_diff)
+    camera_lidar_sync.sync_manual(22, 0, 28620, save_file)
 
 def main_manual() -> None:
     
@@ -359,5 +360,17 @@ def main_manual() -> None:
 
 if __name__=="__main__":
 
-    # main_manual()
-    main()
+    parser = argparse.ArgumentParser(description="Argument for camera-lidar synchronization")
+
+    parser.add_argument("--manual", action="store_true", help="Running manual camera-lidar synchronization")
+    parser.add_argument("--eps_time_diff", type=float, default=0.003, help="Epsilon for defining timestamp different matching lidar and camera")
+    parser.add_argument("--save_file", type=str, default="camera_lidar_sync.csv", help="File name for saving synchronized result")
+
+    args = parser.parse_args()
+
+    if args.manual:
+        print("Running manual synchronization")
+        main_manual()
+    else:
+        print("Running automatic synchronization with eps_time_diff = ", args.eps_time_diff, ". The result is saved to ", args.save_file)
+        main(args.eps_time_diff, args.save_file)
