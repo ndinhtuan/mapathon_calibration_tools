@@ -18,11 +18,18 @@ class CameraLidarVerify(object):
         self.__camera_lidar_sync_data[:, 0] = self.__camera_lidar_sync_data[:, 0].astype(np.uint16)
         print(self.__camera_lidar_sync_data)
 
-    def show_camera_lidar_projection(self) -> None:
+    def show_camera_lidar_projection(self, video_name: str = None) -> None:
+
+        if video_name is not None:
+            out = cv2.VideoWriter(video_name, cv2.VideoWriter_fourcc(*"MJPG"), 10, (640, 480))
         
         for sync_data in self.__camera_lidar_sync_data:
 
             img_id, lidar_scan_id = int(sync_data[0]), int(sync_data[1])
+
+            if lidar_scan_id == -1:
+                continue
+
             tmp_img = "%05d" % img_id
             tmp_lidar = "%06d" % lidar_scan_id
 
@@ -45,11 +52,19 @@ class CameraLidarVerify(object):
             origin_img = right_img.copy()
             projected_right_img = self.__camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img.png")
 
-            cv2.imshow("projected_right_img", projected_right_img)
-            cv2.imshow("origin image", origin_img)
+            if video_name is None:
 
-            if cv2.waitKey(0) & 0xFF == ord('q'):
-                break
+                cv2.imshow("projected_right_img", projected_right_img)
+                cv2.imshow("origin image", origin_img)
+
+                if cv2.waitKey(0) & 0xFF == ord('q'):
+                    break
+            else:
+                projected_right_img = cv2.resize(projected_right_img, (640, 480))
+                out.write(projected_right_img)
+            
+        out.release()
+        cv2.destroyAllWindows()
 
 if __name__=="__main__":
 
@@ -61,4 +76,4 @@ if __name__=="__main__":
                                                  cam_on_pcs_file="./calibration_data/mounting.txt", lidar_on_pcs_file="./calibration_data/Hesai64_on_PCS_mat.csv")
     
     camera_lidar_verifier = CameraLidarVerify(img_data_dir, lidar_data_dir, camera_lidar_sync_file, camera_lidar_projector)
-    camera_lidar_verifier.show_camera_lidar_projection()
+    camera_lidar_verifier.show_camera_lidar_projection("demo.avi")

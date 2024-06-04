@@ -192,3 +192,4 @@ if __name__=="__main__":
 
     cv2.imshow("projected_right_img", projected_right_img)
     cv2.waitKey(0)
+    cv2.imwrite("projected_right_img.png", projected_right_img)
