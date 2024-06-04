@@ -18,7 +18,7 @@ class CameraLidarVerify(object):
         self.__camera_lidar_sync_data[:, 0] = self.__camera_lidar_sync_data[:, 0].astype(np.uint16)
         print(self.__camera_lidar_sync_data)
 
-    def show_camera_lidar_projection(self):
+    def show_camera_lidar_projection(self) -> None:
         
         for sync_data in self.__camera_lidar_sync_data:
 
