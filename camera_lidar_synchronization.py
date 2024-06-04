@@ -22,9 +22,15 @@ class CameraLidaSync(object):
         self.__camera_timestamps_csv = np.genfromtxt(camera_timestamps_csv, delimiter=";")
         self.__camera_timestamps_csv = self.__camera_timestamps_csv[1:, :] # remove header data
         self.__camera_timestamps_csv[:, 0] = self.__camera_timestamps_csv[:, 0].astype(np.uint16)
-        self.__lidar_data_dir = lidar_data_dir
+        self.__camera_timestamps_csv_dict = {}
 
+        for camera_data in self.__camera_timestamps_csv:
+            img_id, img_t = camera_data
+            self.__camera_timestamps_csv_dict[int(img_id)] = img_t
+
+        self.__lidar_data_dir = lidar_data_dir
         self.__camera_timeshift = None
+        self.__eps_timestamp_different = 0.002
 
     def __get_timestamp_ply(self, ply_file: str = None) -> list:
         """
@@ -36,6 +42,25 @@ class CameraLidaSync(object):
 
         return [data[0][3], data[-1][3]]
     
+    def __is_matched_lidar_camera(self, lidar_timestamp_interval: list, camera_timestamp: float,\
+                                  matching_type="interval") -> bool:
+        """
+        matching_type = "interval" -> lidar_timestamp_interval[0] <= camera_timestamp and camera_timestamp <= lidar_timestamp_interval[1]
+        """
+
+        eps = self.__eps_timestamp_different
+
+        if matching_type=="interval":
+            return lidar_timestamp_interval[0] <= camera_timestamp and camera_timestamp <= lidar_timestamp_interval[1]
+        elif matching_type=="first":
+            if eps is None: print("Need to provide eps for matching_type=first")
+            else: 
+                lidar_tt_first = lidar_timestamp_interval[0]
+                diff_ = abs(lidar_tt_first-camera_timestamp)
+                return diff_ <= eps
+        else:
+            print("matching_type ", matching_type, " is not specified.")
+
     def __binary_search(self, start_idx_lidar: int, end_idx_lidar: int, timestamp: float) -> int:
 
         mid_idx = int((start_idx_lidar + end_idx_lidar) / 2)
@@ -44,7 +69,7 @@ class CameraLidaSync(object):
 
         lidar_timestamp_interval = self.__get_timestamp_ply(ply_file)
 
-        if lidar_timestamp_interval[0] <= timestamp and timestamp <= lidar_timestamp_interval[1]:
+        if self.__is_matched_lidar_camera(lidar_timestamp_interval, timestamp, "first"):
             return mid_idx
         elif lidar_timestamp_interval[0] > timestamp:
             return self.__binary_search(start_idx_lidar, mid_idx, timestamp)
@@ -59,17 +84,42 @@ class CameraLidaSync(object):
             ply_file = os.path.join(self.__lidar_data_dir, tmp)
             lidar_timestamp_interval = self.__get_timestamp_ply(ply_file)
 
-            if lidar_timestamp_interval[0] <= timestamp and timestamp <= lidar_timestamp_interval[1]:
+            if self.__is_matched_lidar_camera(lidar_timestamp_interval, timestamp, "first"):
                 return start_idx_lidar + i
             
         return None # timestamp cannot be found
+    
+    def __seek_pivot_search_lidar_id_for_img_id(self, start_idx_lidar: int, timestamp: float) -> int:
+        """
+        Try to find first lidar_id having begining timestamp > img_id timestamp
+        """
+        
+        while True:
 
+            tmp = "%06d.ply" % (start_idx_lidar)
+            ply_file = os.path.join(self.__lidar_data_dir, tmp)
+            
+            if not os.path.isfile(ply_file): return None
+
+            lidar_timestamp_interval = self.__get_timestamp_ply(ply_file)
+            lidar_timestamp_first = lidar_timestamp_interval[0]
+
+            if lidar_timestamp_first < timestamp:
+                start_idx_lidar += 1
+            else:
+                return start_idx_lidar
+
+    def set_eps_timestamp_different(self, eps: float) -> None:
+        self.__eps_timestamp_different = eps
 
     def set_camera_timeshift(self, camera_timeshift: float = None) -> None:
 
         self.__camera_timeshift = camera_timeshift
 
         self.__camera_timestamps_csv[:, 1] = self.__camera_timestamps_csv[:, 1] + camera_timeshift
+
+        for i in self.__camera_timestamps_csv_dict.keys():
+            self.__camera_timestamps_csv_dict[i] = self.__camera_timestamps_csv_dict[i] + camera_timeshift
 
     def show_lidar_timestamp_samples(self, num_samples: int = 10) -> None:
         
@@ -112,6 +162,57 @@ class CameraLidaSync(object):
                 writer = csv.DictWriter(csvfile, fieldnames=matching_result_headers)
                 writer.writeheader()
                 writer.writerows(matching_result)
+
+    def sync_manual(self, img_idx: int, start_idx_lidar: int, end_idx_lidar: int, save_file: str = None) -> None:
+        
+        matching_lidar_idx = None
+        matching_result = []
+        matching_result_headers = ["image_id", "lidar_scan_id"]
+        current_img_idx = img_idx
+        num_matching_img = 0
+        num_img = 0
+
+        while current_img_idx in self.__camera_timestamps_csv_dict.keys():
+
+            img_id_ = current_img_idx
+            img_timestamp = self.__camera_timestamps_csv_dict[img_id_]
+            is_found = False
+
+            if matching_lidar_idx is None:
+                matching_lidar_idx = self.__binary_search(start_idx_lidar, end_idx_lidar, img_timestamp) # Binary search for the first image id
+                is_found = True
+            else:
+                curr_matching_lidar_idx = self.__linear_search(matching_lidar_idx, img_timestamp) # Linear search for the second image id and so on
+
+                if curr_matching_lidar_idx is not None:
+                    matching_lidar_idx = curr_matching_lidar_idx
+                    is_found = True
+                else:
+                    # print(img_id_, " cannot be found")
+                    matching_lidar_idx = self.__seek_pivot_search_lidar_id_for_img_id(matching_lidar_idx, img_timestamp)
+
+            current_img_idx += 1           
+            num_img += 1
+            if is_found : num_matching_img += 1
+
+            if save_file is not None:
+                tmp = {}
+                tmp["image_id"] = img_id_
+
+                if is_found:
+                    tmp["lidar_scan_id"] = matching_lidar_idx
+                else:
+                    tmp["lidar_scan_id"] = -1
+                matching_result.append(tmp)
+        
+        if save_file is not None:
+
+            with open(save_file, "w") as csvfile:
+                writer = csv.DictWriter(csvfile, fieldnames=matching_result_headers)
+                writer.writeheader()
+                writer.writerows(matching_result)
+        
+        print("# matching image / total image: {} / {}".format(num_matching_img, num_img))
 
 class CameraLidarSyncManual(object):
 
@@ -238,8 +339,9 @@ def main() -> None:
     camera_lidar_sync = CameraLidaSync(camera_timestamps_csv, lidar_data_dir)
 
     # camera_lidar_sync.set_camera_timeshift(7828077.74834919) # This value is compute by subtraction between first GPS timestamp in bagfile and start time in bag file
-    camera_lidar_sync.set_camera_timeshift(7828079.00748682) # This value is chosen by using manual_pick from CameraLidarSyncManual
-    camera_lidar_sync.sync(0, 28620, "camera_lidar_sync.csv")
+    camera_lidar_sync.set_camera_timeshift(7828078.943195752) # This value is chosen by using manual_pick from CameraLidarSyncManual
+    camera_lidar_sync.set_eps_timestamp_different(0.01)
+    camera_lidar_sync.sync_manual(22, 0, 28620, "camera_lidar_sync.csv")
 
 def main_manual() -> None:
     
@@ -257,4 +359,5 @@ def main_manual() -> None:
 
 if __name__=="__main__":
 
-    main_manual()
+    # main_manual()
+    main()
