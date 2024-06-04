@@ -78,7 +78,7 @@ class CameraLidaSync(object):
             ply_file = "%06d.ply" % i
             timestamp_ply = self.__get_timestamp_ply(os.path.join(self.__lidar_data_dir, ply_file))
             print("{} : {}".format(ply_file, timestamp_ply))
-    
+
     def sync(self, start_idx_lidar: int, end_idx_lidar: int, save_file: str = None) -> None:
         
         matching_lidar_idx = None
@@ -166,22 +166,44 @@ class CameraLidarSyncManual(object):
 
         return origin_img, projected_right_img
     
+    def show_lidar_summary(self, num_sample: int = 100) -> None:
+
+        for i in range(num_sample):
+
+            tmp_lidar = "%06d" % i
+            lidar_path = os.path.join(self.__lidar_dir, "{}.ply".format(tmp_lidar))
+
+            t_begin, t_end = self.__get_timestamp_ply(lidar_path)
+            print(tmp_lidar, " : ", t_begin, " - ", t_end - t_begin)
+
+    def show_camera_summary(self, num_sample: int = 100) -> None:
+
+        for i in range(num_sample):
+
+            tmp_img = "%05d" %  i
+            tmp_img_after = "%05d" %  (i+1)
+            _, t_0 = self.__camera_timestamps_csv[self.__camera_timestamps_csv[:, 0] == i][0] # need to optimize this code
+            _, t_1 = self.__camera_timestamps_csv[self.__camera_timestamps_csv[:, 0] == i+1][0] # need to optimize this code
+
+            print(tmp_img, " : ", t_0, " - ", t_1 - t_0)
+
     def manual_pick(self, img_id: int = 0, lidar_id: int = 0) -> None:
         """
         Using 'a' and 'd' key to choosing preceding and succeeding lidar data to show on the image plane
+        Using 'w' and 's' key to choosing preceding and succeeding image data to show with the current lidar
         """
 
-        tmp_img = "%05d" % img_id
-        img_path = os.path.join(self.__image_dir, "{}.png".format(tmp_img))
         origin_img = None
         projected_right_img = None
 
         while True:
 
+            tmp_img = "%05d" % img_id
+            img_path = os.path.join(self.__image_dir, "{}.png".format(tmp_img))
             tmp_lidar = "%06d" % lidar_id
             lidar_path = os.path.join(self.__lidar_dir, "{}.ply".format(tmp_lidar))
 
-            if os.path.isfile(lidar_path):
+            if os.path.isfile(lidar_path) and os.path.isfile(img_path):
                 origin_img, projected_right_img = self.__get_lidar_img_projection(img_path, lidar_path)
 
             cv2.imshow("projected_right_img", projected_right_img)
@@ -197,10 +219,17 @@ class CameraLidarSyncManual(object):
 
             if key == ord('d'):
                 lidar_id += 1
+
+            if key == ord('w') and img_id > 0:
+                img_id -= 1
+
+            if key == ord('s'):
+                img_id += 1
             
             if key == ord('c'):
-                print("Suitable lidar id : ", lidar_id)
-                print(self.__get_timestamp_ply(lidar_path))
+                print("Suitable lidar id - image id : ", lidar_id, " - ", img_id)
+                print("Lidar timestamp: ", self.__get_timestamp_ply(lidar_path))
+                print("Image timestamp: ", self.__camera_timestamps_csv[self.__camera_timestamps_csv[:, 0] == img_id])
 
 def main() -> None:
 
@@ -209,7 +238,7 @@ def main() -> None:
     camera_lidar_sync = CameraLidaSync(camera_timestamps_csv, lidar_data_dir)
 
     # camera_lidar_sync.set_camera_timeshift(7828077.74834919) # This value is compute by subtraction between first GPS timestamp in bagfile and start time in bag file
-    camera_lidar_sync.set_camera_timeshift(7828078.906285524) # This value is chosen by using manual_pick from CameraLidarSyncManual
+    camera_lidar_sync.set_camera_timeshift(7828079.00748682) # This value is chosen by using manual_pick from CameraLidarSyncManual
     camera_lidar_sync.sync(0, 28620, "camera_lidar_sync.csv")
 
 def main_manual() -> None:
@@ -222,7 +251,9 @@ def main_manual() -> None:
                                                  cam_on_pcs_file="./calibration_data/mounting.txt", lidar_on_pcs_file="./calibration_data/Hesai64_on_PCS_mat.csv")
     
     camera_lidar_sync_manual = CameraLidarSyncManual(camera_timestamps_csv, img_data_dir, lidar_data_dir, camera_lidar_projector)
-    camera_lidar_sync_manual.manual_pick(img_id=0, lidar_id=2075)
+    camera_lidar_sync_manual.show_lidar_summary(num_sample=100); 
+    camera_lidar_sync_manual.show_camera_summary(num_sample=100)
+    camera_lidar_sync_manual.manual_pick(img_id=22, lidar_id=2090)
 
 if __name__=="__main__":
 
