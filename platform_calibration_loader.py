@@ -92,6 +92,10 @@ class PlatformCalibrationLoader(object):
         self.__camera_on_pcs_mat: np.ndarray = None
         # rotation matrix of the lidar in the platform coordinate system (pcs)
         self.__lidar_on_pcs_mat: np.ndarray = None
+
+        # rotation matrix of the camera (right camera) in the platform coordinate system (pcs)
+        #   but using LaserScanner and T-proble in 3D lab to produce this matrix
+        self.__camera_on_pcs_mat_t_probe: np.ndarray = None
     
     def set_camera_on_pcs_mat(self, camera_on_pcs_mat: np.ndarray) -> None:
         
@@ -101,11 +105,18 @@ class PlatformCalibrationLoader(object):
 
         self.__lidar_on_pcs_mat = lidar_on_pcs_mat
 
+    def set_camera_on_pcs_mat_t_probe(self, camera_on_pcs_mat_t_probe: np.ndarray) -> None:
+        
+        self.__camera_on_pcs_mat_t_probe = camera_on_pcs_mat_t_probe
+
     def get_camera_on_pcs_mat(self) -> np.ndarray:
         return self.__camera_on_pcs_mat
     
     def get_lidar_on_pcs_mat(self) -> np.ndarray:
         return self.__lidar_on_pcs_mat
+    
+    def get_camera_on_pcs_mat_t_probe(self) -> np.ndarray:
+        return self.__camera_on_pcs_mat_t_probe
     
     def parse_stereo_camera_calibration(self, intrinsic_camera_calibration_file: str, \
                                         extrinsic_camera_calibration_file: str) -> None:
@@ -122,7 +133,7 @@ class PlatformCalibrationLoader(object):
         self.__stereo_camera.set_relative_rotation(ex_calib_data.getNode("R").mat())
         self.__stereo_camera.set_relative_translation(ex_calib_data.getNode("T").mat())
         self.__stereo_camera.create_relative_orientation()
-
+    
     @staticmethod
     # Function to create rotation matrix from AlZeKa angles and traslation vector
     def create_transformation_mat_from_IPIeuler(alpha: float, zeta: float, kappa: float, translation: np.ndarray) -> np.ndarray:
@@ -180,6 +191,16 @@ class PlatformCalibrationLoader(object):
         lidar_on_pcs_mat = lidar_on_pcs_mat_pd.to_numpy()[:, :-1] # remove the last column - Timestamp
         self.set_lidar_on_pcs_mat(lidar_on_pcs_mat)
 
+    # Parsing the transformation matrix from camera to platform, produced by LaserScan and T-probe
+    def parse_pcs_calibration_camera_t_probe(self, camera_on_pcs_mat_t_probe_file: str) -> None:
+        
+        # Read content of the file, this file contains transformation matrix of both left and right camera
+        #   on the platform coordinate system
+        camera_on_pcs_mat_t_probe_pd = pd.read_csv(camera_on_pcs_mat_t_probe_file)
+        right_camera_on_pcs_mat_t_probe = camera_on_pcs_mat_t_probe_pd.to_numpy()[4: , :][:, 1:-1]
+        right_camera_on_pcs_mat_t_probe = right_camera_on_pcs_mat_t_probe.astype(np.float32)
+        self.set_camera_on_pcs_mat_t_probe(right_camera_on_pcs_mat_t_probe)
+
     def show_sensor_transformation_info(self):
 
         print("Camera transformation matrix in PCS: ")
@@ -202,3 +223,7 @@ if __name__=="__main__":
     platform_calibration_loader.parse_pcs_calibration("./calibration_data/mounting.txt",\
                                                       "./calibration_data/Hesai64_on_PCS_mat.csv")
     platform_calibration_loader.show_sensor_transformation_info()
+
+    platform_calibration_loader.parse_pcs_calibration_camera_t_probe("./calibration_data/Cams_on_PCS_mat.csv")
+    lidar_on_pcs_mat = platform_calibration_loader.get_camera_on_pcs_mat()
+    camera_on_pcs_mat = platform_calibration_loader.get_camera_on_pcs_mat_t_probe()
