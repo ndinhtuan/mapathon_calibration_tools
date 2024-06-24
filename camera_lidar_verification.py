@@ -2,6 +2,7 @@ from camera_lidar_projection import CameraLidarProjector
 import numpy as np
 import os
 import cv2
+import argparse
 
 class CameraLidarVerify(object):
 
@@ -100,11 +101,11 @@ class CameraLidarVerify(object):
 
             right_img = self.__camera_lidar_projector.get_right_img()
             origin_img = right_img.copy()
-            projected_right_img = self.__camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img.png")
+            projected_right_img = self.__camera_lidar_projector.show_points_on_img(right_img, right_img_points, right_camera_points_depth, 2, 20, "projected_right_img_tprobe.png")
 
             if video_name is None:
 
-                cv2.imshow("projected_right_img", projected_right_img)
+                cv2.imshow("projected_right_img_tprobe", projected_right_img)
                 cv2.imshow("origin image", origin_img)
 
                 if cv2.waitKey(0) & 0xFF == ord('q'):
@@ -120,6 +121,12 @@ class CameraLidarVerify(object):
 
 if __name__=="__main__":
 
+    parser = argparse.ArgumentParser(description="Argument for camera-lidar synchronization")
+
+    parser.add_argument("--t_probe", action="store_true", help="Running manual camera-lidar synchronization")
+
+    args = parser.parse_args()
+
     img_data_dir = "/media/tuan/Daten/mapathon/mapathon_dataset/scenario_1_2/camera/processed_data/2023_08_16_09_01_55_1/right_camera"
     lidar_data_dir = "/media/tuan/Daten/mapathon/mapathon_dataset/scenario_1_2/Hesai64/LOCAL"
     camera_lidar_sync_file = "camera_lidar_sync.csv"
@@ -129,4 +136,8 @@ if __name__=="__main__":
                                                 cam_on_pcs_t_probe_file="./calibration_data/Cams_on_PCS_mat.csv")
     
     camera_lidar_verifier = CameraLidarVerify(img_data_dir, lidar_data_dir, camera_lidar_sync_file, camera_lidar_projector)
-    camera_lidar_verifier.show_camera_lidar_projection()
+
+    if not args.t_probe:
+        camera_lidar_verifier.show_camera_lidar_projection()
+    else:
+        camera_lidar_verifier.show_camera_lidar_projection_t_probe()
