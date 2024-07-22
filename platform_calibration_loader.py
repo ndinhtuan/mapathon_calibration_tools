@@ -9,19 +9,36 @@ class MonoCamera(object):
         self.__camera_matrix: np.ndarray = None
         self.__distortion_coeff: np.ndarray = None
 
-    def set_camera_matrix(self, camera_matrix: np.ndarray) -> None:
+        # Attributes from stereo camera model of IPI library (based on opencv library)
+        self.__rectification_transform: np.ndarray = None # following IPI definition (independent images 
+                                        # with two angles (for left) and three angles (for right))
+                                        # Notation: R1 (for left camera), R2 (for right camera)
+        self.__projection_matrix: np.ndarray = None # projection matrix for rectified (epipolar) image
+                                        # similar to definition of opencv as well as IPI
 
+    def set_camera_matrix(self, camera_matrix: np.ndarray) -> None:
         self.__camera_matrix = camera_matrix
     
     def set_distortion_coeff(self, distortion_coeff: np.ndarray) -> None:
-
         self.__distortion_coeff = distortion_coeff
+
+    def set_rectification_transform(self, rectification_transform: np.ndarray) -> None:
+        self.__rectification_transform = rectification_transform
+
+    def set_projection_matrix(self, projection_matrix: np.ndarray) -> None:
+        self.__projection_matrix = projection_matrix
     
     def get_camera_matrix(self) -> np.ndarray:
         return self.__camera_matrix
     
     def get_distortion_coeff(self) -> np.ndarray:
         return self.__distortion_coeff
+    
+    def get_rectification_transform(self) -> np.ndarray:
+        return self.__rectification_transform
+    
+    def get_projection_matrix(self) -> np.ndarray:
+        return self.__projection_matrix
 
 class StereoCamera(object):
 
@@ -109,6 +126,9 @@ class PlatformCalibrationLoader(object):
         
         self.__camera_on_pcs_mat_t_probe = camera_on_pcs_mat_t_probe
 
+    def get_stereo_camera(self) -> StereoCamera:
+        return self.__stereo_camera
+
     def get_camera_on_pcs_mat(self) -> np.ndarray:
         return self.__camera_on_pcs_mat
     
@@ -126,9 +146,13 @@ class PlatformCalibrationLoader(object):
 
         self.__stereo_camera.get_left_camera().set_camera_matrix(in_calib_data.getNode("M1").mat())
         self.__stereo_camera.get_left_camera().set_distortion_coeff(in_calib_data.getNode("D1").mat())
+        self.__stereo_camera.get_left_camera().set_rectification_transform(ex_calib_data.getNode("R1").mat())
+        self.__stereo_camera.get_left_camera().set_projection_matrix(ex_calib_data.getNode("P1").mat())
 
         self.__stereo_camera.get_right_camera().set_camera_matrix(in_calib_data.getNode("M2").mat())
         self.__stereo_camera.get_right_camera().set_distortion_coeff(in_calib_data.getNode("D2").mat())
+        self.__stereo_camera.get_right_camera().set_rectification_transform(ex_calib_data.getNode("R2").mat())
+        self.__stereo_camera.get_right_camera().set_projection_matrix(ex_calib_data.getNode("P2").mat())
 
         self.__stereo_camera.set_relative_rotation(ex_calib_data.getNode("R").mat())
         self.__stereo_camera.set_relative_translation(ex_calib_data.getNode("T").mat())
