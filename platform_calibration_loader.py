@@ -15,6 +15,9 @@ class MonoCamera(object):
                                         # Notation: R1 (for left camera), R2 (for right camera)
         self.__projection_matrix: np.ndarray = None # projection matrix for rectified (epipolar) image
                                         # similar to definition of opencv as well as IPI
+        
+        self.__image_size_h : int = None
+        self.__image_size_w : int = None
 
     def set_camera_matrix(self, camera_matrix: np.ndarray) -> None:
         self.__camera_matrix = camera_matrix
@@ -27,6 +30,12 @@ class MonoCamera(object):
 
     def set_projection_matrix(self, projection_matrix: np.ndarray) -> None:
         self.__projection_matrix = projection_matrix
+
+    def set_image_size_h(self, image_size_h: int) -> None:
+        self.__image_size_h = image_size_h
+
+    def set_image_size_w(self, image_size_w: int) -> None:
+        self.__image_size_w = image_size_w
     
     def get_camera_matrix(self) -> np.ndarray:
         return self.__camera_matrix
@@ -39,6 +48,9 @@ class MonoCamera(object):
     
     def get_projection_matrix(self) -> np.ndarray:
         return self.__projection_matrix
+    
+    def get_image_size_wh(self):
+        return (self.__image_size_w, self.__image_size_h)
 
 class StereoCamera(object):
 
@@ -146,11 +158,15 @@ class PlatformCalibrationLoader(object):
 
         self.__stereo_camera.get_left_camera().set_camera_matrix(in_calib_data.getNode("M1").mat())
         self.__stereo_camera.get_left_camera().set_distortion_coeff(in_calib_data.getNode("D1").mat())
+        self.__stereo_camera.get_left_camera().set_image_size_w(int(in_calib_data.getNode("w1").real()))
+        self.__stereo_camera.get_left_camera().set_image_size_h(int(in_calib_data.getNode("h1").real()))
         self.__stereo_camera.get_left_camera().set_rectification_transform(ex_calib_data.getNode("R1").mat())
         self.__stereo_camera.get_left_camera().set_projection_matrix(ex_calib_data.getNode("P1").mat())
 
         self.__stereo_camera.get_right_camera().set_camera_matrix(in_calib_data.getNode("M2").mat())
         self.__stereo_camera.get_right_camera().set_distortion_coeff(in_calib_data.getNode("D2").mat())
+        self.__stereo_camera.get_right_camera().set_image_size_w((in_calib_data.getNode("w2").real()))
+        self.__stereo_camera.get_right_camera().set_image_size_h((in_calib_data.getNode("h2").real()))
         self.__stereo_camera.get_right_camera().set_rectification_transform(ex_calib_data.getNode("R2").mat())
         self.__stereo_camera.get_right_camera().set_projection_matrix(ex_calib_data.getNode("P2").mat())
 
