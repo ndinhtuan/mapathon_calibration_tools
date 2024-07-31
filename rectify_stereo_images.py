@@ -125,7 +125,7 @@ class StereoRectification(object):
         @left_image_path: the path to left image
         @right_image_path: the path to right image
         @scale_ratio: use to resize the original image
-        @saving_horizontal_positions_file: use to save the chosen horizontal positions, by the option `picking_request`. 
+        @saving_horizontal_positions_file: use to save the chosen horizontal positions. 
                 If the value is None, the chosen horizontal positions will not be saved
         """
 
@@ -147,10 +147,46 @@ class StereoRectification(object):
             k = cv2.waitKey(20) & 0xFF
 
             if k == ord("q"):
+                cv2.destroyAllWindows()
+                cv2.imwrite("rectified_stereo_image_with_epipolar_lines.png", self.__rectified_stereo_img)
                 break
             elif k == ord("s"):
                 if saving_horizontal_positions_file is not None:
                     np.savetxt(saving_horizontal_positions_file, self.__chosen_horizontal_lines)
+
+    def draw_rectified_stereo_pair(self, left_image_path: str, right_image_path: str, 
+                                   scale_ratio: float = 0.7, horizontal_positions_file: str = None) -> None:
+        """
+        This function draw horizontal (epipolar) lines on the rectified stereo pair to check whether the points on the left image and 
+        the corresponding ones on the right image lying on the epipolar line.
+        @left_image_path: the path to left image
+        @right_image_path: the path to right image
+        @scale_ratio: use to resize the original image
+        @horizontal_positions_file: the file including the predefined horizontal lines position to draw on the rectified image. 
+        """
+
+        left_image = cv2.imread(left_image_path)
+        right_image = cv2.imread(right_image_path)
+        
+        rectified_left_image, rectified_right_image = self.rectify_stereo_image(left_image, right_image)
+
+        left_image_scale = cv2.resize(rectified_left_image, dsize=None, fx=scale_ratio, fy=scale_ratio)
+        right_image_scale = cv2.resize(rectified_right_image, dsize=None, fx=scale_ratio, fy=scale_ratio)
+
+        self.__rectified_stereo_img = cv2.hconcat((left_image_scale, right_image_scale))
+
+        horizontal_positions = np.loadtxt(horizontal_positions_file)
+
+        for i in horizontal_positions:
+            
+            y = int(i)
+            line_pnt1 = (0, y)
+            line_pnt2 = (self.__rectified_stereo_img.shape[1], y)
+            self.__rectified_stereo_img = cv2.line(self.__rectified_stereo_img, line_pnt1, line_pnt2, [0, 0, 255], 1)
+        
+        cv2.imshow("rectified_stereo_image_with_epipolar_lines", self.__rectified_stereo_img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 if __name__=="__main__":
     
@@ -164,12 +200,17 @@ if __name__=="__main__":
     parser.add_argument("--on_image", action="store_true", help="Running rectification on a pair of stereo image.")
     parser.add_argument("--left_image", type=str, default="", help="Path to the left image, need to specify if --on_image is used.")
     parser.add_argument("--right_image", type=str, default="", help="Path to the left image, need to specify if --on_image is used.")
+    parser.add_argument("--predefined_positions_file", type=str, default=None, help="Path to pre-defined horizontal line position to draw on the rectified image.")
 
     args = parser.parse_args()
 
     stereo_rectification = StereoRectification(args.intrinsic_file, args.extrinsic_file)
 
     if args.on_image:
-        stereo_rectification.draw_rectified_stereo_pair_picking_required(args.left_image, args.right_image)
+
+        if args.predefined_positions_file is None:
+            stereo_rectification.draw_rectified_stereo_pair_picking_required(args.left_image, args.right_image, scale_ratio=0.8, saving_horizontal_positions_file="position.out")
+        else:
+            stereo_rectification.draw_rectified_stereo_pair(args.left_image, args.right_image, scale_ratio=0.8, horizontal_positions_file="position.out")
     else:
         stereo_rectification.rectify_stereo_directory(args.src_raw_folder, args.dst_folder)
