@@ -185,6 +185,7 @@ class StereoRectification(object):
             self.__rectified_stereo_img = cv2.line(self.__rectified_stereo_img, line_pnt1, line_pnt2, [0, 0, 255], 1)
         
         cv2.imshow("rectified_stereo_image_with_epipolar_lines", self.__rectified_stereo_img)
+        cv2.imwrite("rectified_stereo_image_with_epipolar_lines.png", self.__rectified_stereo_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
