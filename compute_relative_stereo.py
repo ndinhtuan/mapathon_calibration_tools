@@ -8,6 +8,7 @@ from typing import Tuple, List
 import cv2
 import argparse
 import os
+import matplotlib.pyplot as plt
 
 class IPI_OmFiKaRot(object):
     """
@@ -162,16 +163,16 @@ class RelativeStereoComputation(object):
         
         relative_rotation, relative_translation = self.compute_relative_transformation_stereo(left_image, right_image)
 
-        self.__euler_angle.compute_parameters_from_rotation_matrix(relative_rotation, True)
+        radiant_angle = self.__euler_angle.compute_parameters_from_rotation_matrix(relative_rotation, True)
         return self.__euler_angle.get_angles(in_degree=True)
 
-    def compute_rotation_stereo_sequence(self, left_image_dir: str, right_image_dir: str, step : int, num_samples: int) -> List:
+    def compute_rotation_stereo_sequence(self, left_image_dir: str, right_image_dir: str, start : int, step : int, num_samples: int) -> List:
         
         stats = []
 
         for i in range(num_samples):
 
-            image_id = i * step
+            image_id = i * step + start
             image_name = "%05d" % image_id
 
             left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
@@ -190,22 +191,55 @@ class RelativeStereoComputation(object):
     def compute_rectified_rotation_matrix_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         pass
 
+class RelativeStereoStatistic(object):
+
+    def __init__(self, statistic_file: str) -> None:
+
+        self.__statistic_file = statistic_file
+        self.__data = np.loadtxt(self.__statistic_file)
+
+    def draw_euler_statistic(self, step: int = 2) -> None:
+
+        idx = range(self.__data.shape[0]) 
+        list_omega = self.__data[:, 0]
+        list_phi = self.__data[:, 1]
+        list_kappa = self.__data[:, 2]
+
+        plt.plot(idx, list_omega, label = "Omega", linestyle="-.")
+        plt.plot(idx, list_phi, label = "Phi", linestyle="--")
+        plt.plot(idx, list_kappa, label = "Kappa", linestyle=":")
+        plt.title("The variation of relative orientation between the left and right camera. Unit: degree")
+
+        plt.legend()
+        plt.show()
+
 if __name__=="__main__":
     
     parser = argparse.ArgumentParser(description="Argument for relative stereo computation.")
 
+    parser.add_argument("--on_sequence", action="store_true", help="Running on the stereo image pair.")
     parser.add_argument("--intrinsic_file", type=str, help="Path to the intrinsic file of stereo calibration.")
     parser.add_argument("--extrinsic_file", type=str, help="Path to the extrinsic file of stereo calibration.")
     parser.add_argument("--left_image_dir", type=str, help="Path to the left image directory.")
     parser.add_argument("--right_image_dir", type=str, help="Path to the right image directory.")
+    parser.add_argument("--start", type=int, default=0, help="Start id sample in stereo sequence, using to compute relative orientation.")
     parser.add_argument("--step", type=int, default=10, help="Step between each sample in stereo sequence, using to compute relative orientation.")
-    parser.add_argument("--num_samples", type=int, default=100, help="Number of stereo sample using for computing relative orientation")
+    parser.add_argument("--num_samples", type=int, default=200, help="Number of stereo sample using for computing relative orientation")
+    parser.add_argument("--saving_stats_file", type=str, default="stereo_relative_sequence.out", help="Name of file for saving relative orientation statistics.")
 
     parser.add_argument("--on_image", action="store_true", help="Running on the stereo image pair.")
     parser.add_argument("--left_image", type=str, help="Path to the left image.")
     parser.add_argument("--right_image", type=str, help="Path to the right image.")
 
+    parser.add_argument("--draw_report", action="store_true", help="Drawing the report for relative orientation change.")
+
     args = parser.parse_args()
 
-    relative_stereo_computation = RelativeStereoComputation(args.intrinsic_file, args.extrinsic_file)
-    relative_stereo_computation.compute_rotation_stereo_sequence(args.left_image_dir, args.right_image_dir, args.step, args.num_samples)
+    if args.on_sequence:
+        relative_stereo_computation = RelativeStereoComputation(args.intrinsic_file, args.extrinsic_file)
+        stats = relative_stereo_computation.compute_rotation_stereo_sequence(args.left_image_dir, args.right_image_dir, args.start, args.step, args.num_samples)
+        np.savetxt(args.saving_stats_file, stats)
+    
+    if args.draw_report:
+        drawer = RelativeStereoStatistic(args.saving_stats_file)
+        drawer.draw_euler_statistic()
