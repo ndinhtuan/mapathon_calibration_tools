@@ -86,7 +86,12 @@ class RelativeStereoComputation(object):
         self.__feature_descriptor = cv2.SIFT().create()
         self.__feature_matcher = cv2.BFMatcher()
 
+        # dependent view
         self.__euler_angle = IPI_OmFiKaRot()
+
+        # two independent view
+        self.p_relative_orientation_1 = IPI_OmFiKaRot()
+        self.p_relative_orientation_2 = IPI_OmFiKaRot()
 
     def __find_matched_keypoints_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -119,6 +124,14 @@ class RelativeStereoComputation(object):
 
         return passed_ratio_kp_left, passed_ratio_kp_right
 
+    def __convert_rad_to_gon(self, list_angle: list) -> float:
+
+        list_result = []
+        
+        for angle in list_angle:
+            list_result.append(angle*63.6619772368)
+        return list_result
+
     def undistort_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         
         left_camera = self.__stereo_camera.get_left_camera()
@@ -128,7 +141,7 @@ class RelativeStereoComputation(object):
         undistorted_right_image = cv2.undistort(right_image, right_camera.get_camera_matrix(), right_camera.get_distortion_coeff())
 
         return undistorted_left_image, undistorted_right_image
-
+    
     def compute_essential_matrix_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
 
         kp_left, kp_right = self.__find_matched_keypoints_stereo(left_image, right_image)
@@ -157,6 +170,46 @@ class RelativeStereoComputation(object):
         print(mask.astype(np.float32).sum(), " inliers found.")
 
         return relative_rotation, relative_translation
+
+    # Compute relative rotation matrix for two images, then compute angles for each rotation matrix
+    def compute_relative_transformation_stereo_5_angles(self, left_image: np.ndarray, right_image: np.ndarray) \
+                            -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
+
+        kp_left, kp_right = self.__find_matched_keypoints_stereo(left_image, right_image)
+
+        left_camera = self.__stereo_camera.get_left_camera()
+        right_camera = self.__stereo_camera.get_right_camera()
+
+        retval, essential_matrix, relative_rotation, relative_translation, mask = cv2.recoverPose(points1=kp_left, points2=kp_right,
+                                        cameraMatrix1=left_camera.get_camera_matrix(), distCoeffs1=left_camera.get_distortion_coeff(),
+                                        cameraMatrix2=right_camera.get_camera_matrix(), distCoeffs2=right_camera.get_distortion_coeff()) 
+        
+        print(mask.astype(np.float32).sum(), " inliers found.")
+
+        R1, R2, P1, P2, Q, valid_pix_roi1, valid_pix_roi2 = cv2.stereoRectify(cameraMatrix1=left_camera.get_camera_matrix(), distCoeffs1=left_camera.get_distortion_coeff(),
+                                                                              cameraMatrix2=right_camera.get_camera_matrix(), distCoeffs2=right_camera.get_distortion_coeff(),
+                                                                              imageSize=left_camera.get_image_size_wh(), R=relative_rotation, \
+                                                                                T=self.__stereo_camera.get_relative_translation())
+
+        omega1, phi1, kappa1 = self.__convert_rad_to_gon(self.p_relative_orientation_1.compute_parameters_from_rotation_matrix(R1, True))
+        omega2, phi2, kappa2 = self.__convert_rad_to_gon(self.p_relative_orientation_2.compute_parameters_from_rotation_matrix(R2, True))
+
+        return omega1, phi1, kappa1, omega2, phi2, kappa2
+    
+    def test_compute_relative_transformation_stereo_5_angles(self):
+        
+        left_camera = self.__stereo_camera.get_left_camera()
+        right_camera = self.__stereo_camera.get_right_camera()
+
+        R1, R2, P1, P2, Q, valid_pix_roi1, valid_pix_roi2 = cv2.stereoRectify(cameraMatrix1=left_camera.get_camera_matrix(), distCoeffs1=left_camera.get_distortion_coeff(),\
+                                                                              cameraMatrix2=right_camera.get_camera_matrix(), distCoeffs2=right_camera.get_distortion_coeff(),\
+                                                                              imageSize=left_camera.get_image_size_wh(), R=self.__stereo_camera.get_relative_rotation(), \
+                                                                              T=self.__stereo_camera.get_relative_translation())
+
+        omega1, phi1, kappa1 = self.__convert_rad_to_gon(self.p_relative_orientation_1.compute_parameters_from_rotation_matrix(R1, True))
+        omega2, phi2, kappa2 = self.__convert_rad_to_gon(self.p_relative_orientation_2.compute_parameters_from_rotation_matrix(R2, True))
+
+        return omega1, phi1, kappa1, omega2, phi2, kappa2
     
     # Return omega, phi, kappa
     def compute_rotation_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.float32, np.float32, np.float32]:
@@ -170,20 +223,93 @@ class RelativeStereoComputation(object):
         
         stats = []
 
-        for i in range(num_samples):
+        if num_samples > 0:
 
-            image_id = i * step + start
-            image_name = "%05d" % image_id
+            for i in range(num_samples):
 
-            left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
-            right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
+                image_id = i * step + start
+                image_name = "%05d" % image_id
 
-            left_image = cv2.imread(left_image_path)
-            right_image = cv2.imread(right_image_path)
+                left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
+                right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
 
-            euler_angle = self.compute_rotation_stereo(left_image, right_image)
-            print("{} : {}".format(image_id, euler_angle))
-            stats.append(euler_angle)
+                left_image = cv2.imread(left_image_path)
+                right_image = cv2.imread(right_image_path)
+
+                euler_angle = self.compute_rotation_stereo(left_image, right_image)
+                print("{} : {}".format(image_id, euler_angle))
+                stats.append(euler_angle)
+
+        else:
+
+            i = 0
+
+            while True:
+
+                image_id = i * step + start
+                image_name = "image_{}".format(image_id)
+
+                left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
+                right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
+
+                if not os.path.isfile(left_image_path) or not os.path.isfile(right_image_path):
+                    print("{} or {} do not exists.".format(left_image_path, right_image_path))
+                    exit()
+
+                left_image = cv2.imread(left_image_path)
+                right_image = cv2.imread(right_image_path)
+
+                euler_angle = self.compute_rotation_stereo(left_image, right_image)
+                print("{} : {}".format(image_id, euler_angle))
+                stats.append(euler_angle)
+        
+        return stats
+
+    def compute_rotation_stereo_sequence_5_angles(self, left_image_dir: str, right_image_dir: str, start : int, step : int, num_samples: int) -> List:
+        
+        stats = []
+
+        if num_samples > 0:
+
+            for i in range(num_samples):
+
+                image_id = i * step + start
+                image_name = "%05d" % image_id
+
+                left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
+                right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
+
+                left_image = cv2.imread(left_image_path)
+                right_image = cv2.imread(right_image_path)
+
+                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image)
+                print("{} : {}".format(image_id, euler_angle))
+                stats.append(euler_angle)
+
+        else:
+
+            i = 0
+
+            while True:
+
+                image_id = i * step + start
+                image_name = "image_{}".format(image_id)
+
+                left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
+                right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
+
+                if not os.path.isfile(left_image_path) or not os.path.isfile(right_image_path):
+                    print("{} or {} do not exists.".format(left_image_path, right_image_path))
+                    exit()
+
+                left_image = cv2.imread(left_image_path)
+                right_image = cv2.imread(right_image_path)
+
+                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image)
+                print("{} : {}".format(image_id, euler_angle))
+                stats.append(euler_angle)
+
+                i += 1
         
         return stats
 
@@ -237,7 +363,7 @@ if __name__=="__main__":
 
     if args.on_sequence:
         relative_stereo_computation = RelativeStereoComputation(args.intrinsic_file, args.extrinsic_file)
-        stats = relative_stereo_computation.compute_rotation_stereo_sequence(args.left_image_dir, args.right_image_dir, args.start, args.step, args.num_samples)
+        stats = relative_stereo_computation.compute_rotation_stereo_sequence_5_angles(args.left_image_dir, args.right_image_dir, args.start, args.step, args.num_samples)
         np.savetxt(args.saving_stats_file, stats)
     
     if args.draw_report:
