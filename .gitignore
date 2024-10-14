@@ -3,3 +3,5 @@ __pycache__/
 *.csv
 *.avi
 *.out
+*.txt
+viz/*
