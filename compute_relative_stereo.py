@@ -352,8 +352,8 @@ class RelativeStereoComputation(object):
             for i in range(num_samples):
 
                 image_id = i * step + start
-                image_name = "image_{}".format(image_id) #"%05d" % image_id
-                # image_name = "%05d" % image_id
+                # image_name = "image_{}".format(image_id) #"%05d" % image_id
+                image_name = "%05d" % image_id
 
                 left_image_path = os.path.join(left_image_dir, "{}.png".format(image_name))
                 right_image_path = os.path.join(right_image_dir, "{}.png".format(image_name))
@@ -417,6 +417,55 @@ class RelativeStereoStatistic(object):
 
         plt.legend()
         plt.show()
+
+    def draw_euler_statistic_5_angles_trend(self) -> None:
+        
+        from sklearn.linear_model import LinearRegression
+        
+        idx = range(self.__data.shape[0]) 
+        list_omega_1 = self.__data[:, 0] - 0.081
+        list_phi_1 = self.__data[:, 1] + 0.082
+        list_kappa_1 = self.__data[:, 2] - 0.083
+
+        list_omega_2 = self.__data[:, 3] + 0.081
+        list_phi_2 = self.__data[:, 4] + 0.218
+        list_kappa_2 = self.__data[:, 5] - 0.072
+
+        threshold_value = 100
+
+        chosen_idx1 = np.logical_and(np.logical_and((list_omega_1 < threshold_value),(list_phi_1 < threshold_value)), (list_kappa_1 < threshold_value))
+        chosen_idx2 = np.logical_and(np.logical_and((list_omega_2 < threshold_value),(list_phi_2 < threshold_value)), (list_kappa_2 < threshold_value))
+        chosen_idx = np.logical_and(chosen_idx1, chosen_idx2)
+        idx = np.array(range(sum(chosen_idx)))
+
+        list_omega_1 = list_omega_1[chosen_idx]
+        list_phi_1 = list_phi_1[chosen_idx]
+        list_kappa_1 = list_kappa_1[chosen_idx]
+
+        list_omega_2 = list_omega_2[chosen_idx]
+        list_phi_2 = list_phi_2[chosen_idx]
+        list_kappa_2 = list_kappa_2[chosen_idx]
+
+        # print(list_phi_1.shape, idx.shape); exit()
+        list_phi_1 = list_phi_1.reshape(-1, 1)
+        X = np.hstack([idx.reshape(-1, 1), np.expand_dims(np.ones(idx.shape[0]), axis=1)])
+        y = list_phi_1
+        reg = LinearRegression().fit(X, y)
+        k, d = reg.coef_[0]
+        v = reg.predict(X)  - y
+        tmp = v**2
+        score = tmp.sum() / len(idx)
+        print("sum square residual: ", score)
+        sigma_0 = np.sqrt(v.T @ v / (len(idx) - 2))
+        print(reg.score(X, y), sigma_0)
+
+        plt.plot(idx, list_phi_1, label = "Phi_1", linestyle="--")
+        plt.plot([0, len(idx)], [0, len(idx)*k + d], 'k-')
+        plt.title("")
+
+        plt.legend()
+        plt.show()
+        plt.close("all")
 
     def draw_euler_statistic_5_angles(self, step: int = 2) -> None:
 
@@ -521,4 +570,4 @@ if __name__=="__main__":
     
     if args.draw_report:
         drawer = RelativeStereoStatistic(args.saving_stats_file)
-        drawer.draw_euler_statistic_5_angles()
+        drawer.draw_euler_statistic_5_angles_trend()
