@@ -447,25 +447,41 @@ class RelativeStereoStatistic(object):
         list_kappa_2 = list_kappa_2[chosen_idx]
 
         # print(list_phi_1.shape, idx.shape); exit()
-        list_phi_1 = list_phi_1.reshape(-1, 1)
-        X = np.hstack([idx.reshape(-1, 1), np.expand_dims(np.ones(idx.shape[0]), axis=1)])
-        y = list_phi_1
-        reg = LinearRegression().fit(X, y)
-        k, d = reg.coef_[0]
-        v = reg.predict(X)  - y
-        tmp = v**2
-        score = tmp.sum() / len(idx)
-        print("sum square residual: ", score)
-        sigma_0 = np.sqrt(v.T @ v / (len(idx) - 2))
-        print(reg.score(X, y), sigma_0)
 
-        plt.plot(idx, list_phi_1, label = "Phi_1", linestyle="--")
-        plt.plot([0, len(idx)], [0, len(idx)*k + d], 'k-')
-        plt.title("")
+        dict_angle = dict()
 
-        plt.legend()
-        plt.show()
-        plt.close("all")
+        dict_angle["omega_1"] = list_omega_1
+        dict_angle["omega_2"] = list_omega_2
+        dict_angle["phi_1"] = list_phi_1
+        dict_angle["phi_2"] = list_phi_2
+        dict_angle["kappa_1"] = list_kappa_1
+        dict_angle["kappa_2"] = list_kappa_2
+
+        for name_angle in dict_angle.keys():
+            
+            list_angle = dict_angle[name_angle]
+            list_angle = list_angle.reshape(-1, 1)
+            # X = np.hstack([idx.reshape(-1, 1), np.expand_dims(np.ones(idx.shape[0]), axis=1)])
+            X = idx.reshape(-1, 1)
+            y = list_angle
+            reg = LinearRegression().fit(X, y)
+            k = reg.coef_[0][0]
+            d = reg.intercept_[0]
+            print("params: ", reg.coef_, reg.intercept_)
+            v = reg.predict(X)  - y
+            tmp = v**2
+            score = tmp.sum() / len(idx)
+            print("sum square residual: ", score)
+            sigma_0 = np.sqrt(v.T @ v / (len(idx) - 2))[0][0]
+            print(reg.score(X, y), sigma_0)
+
+            plt.plot(idx, list_angle, label = name_angle, linestyle="--")
+            plt.plot([0, len(idx)], [d, len(idx)*k + d], 'k-')
+            plt.title("The regression analysis for {} - k = {}, d = {}. Score = {}, sigma_0 = {}".format(name_angle, k, np.round(d, 3), np.round(score, 2), np.round(sigma_0, 2)))
+
+            plt.legend()
+            plt.show()
+            plt.close("all")
 
     def draw_euler_statistic_5_angles(self, step: int = 2) -> None:
 
@@ -570,4 +586,5 @@ if __name__=="__main__":
     
     if args.draw_report:
         drawer = RelativeStereoStatistic(args.saving_stats_file)
+        drawer.draw_euler_statistic_5_angles()
         drawer.draw_euler_statistic_5_angles_trend()
