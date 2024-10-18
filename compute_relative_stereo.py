@@ -93,11 +93,24 @@ class RelativeStereoComputation(object):
         self.p_relative_orientation_1 = IPI_OmFiKaRot()
         self.p_relative_orientation_2 = IPI_OmFiKaRot()
 
-        if viz_output_dir is not None and not os.path.isdir(viz_output_dir):
-            os.makedirs(viz_output_dir)
+        if viz_output_dir is not None:
+
+            if not os.path.isdir(viz_output_dir):
+                os.makedirs(viz_output_dir)
+            
+            if not os.path.isdir("{}/bad_kp".format(viz_output_dir)):
+                os.makedirs("{}/bad_kp".format(viz_output_dir))
+
+            if not os.path.isdir("{}/good_kp".format(viz_output_dir)):
+                os.makedirs("{}/good_kp".format(viz_output_dir))
 
         self.__viz_output_dir = viz_output_dir
-        self.__viz_img_idx = 0
+
+        self.__viz_output_dir_good_kp = "{}/good_kp".format(viz_output_dir)
+        self.__viz_img_idx_good_kp = 0
+
+        self.__viz_output_dir_bad_kp = "{}/bad_kp".format(viz_output_dir)
+        self.__viz_img_idx_bad_kp = 0
 
     def __find_matched_keypoints_stereo(self, left_image: np.ndarray, right_image: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
         """
@@ -226,8 +239,8 @@ class RelativeStereoComputation(object):
         return relative_rotation, relative_translation
 
     # Compute relative rotation matrix for two images, then compute angles for each rotation matrix
-    def compute_relative_transformation_stereo_5_angles(self, left_image: np.ndarray, right_image: np.ndarray) \
-                            -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
+    def compute_relative_transformation_stereo_5_angles(self, left_image: np.ndarray, right_image: np.ndarray, viz_good_matching_kp: int = 0\
+                                                        ) -> Tuple[np.float32, np.float32, np.float32, np.float32, np.float32, np.float32]:
 
         kp_left, kp_right = self.__find_matched_keypoints_stereo(left_image, right_image)
         print("kp_left shape: ", kp_left, kp_left.shape)
@@ -265,11 +278,25 @@ class RelativeStereoComputation(object):
 
             if self.__viz_output_dir is not None:
 
-                cv2.imwrite("{}/kp_image_{}.png".format(self.__viz_output_dir, self.__viz_img_idx), kp_image)
-                cv2.imwrite("{}/matching_kp_image_{}.png".format(self.__viz_output_dir, self.__viz_img_idx), matching_kp_image)
-                np.savetxt("{}/relative_orientation_5_angles_{}.txt".format(self.__viz_output_dir, self.__viz_img_idx), relative_5_angles)
+                cv2.imwrite("{}/kp_image_{}.png".format(self.__viz_output_dir_bad_kp, self.__viz_img_idx_bad_kp), kp_image)
+                cv2.imwrite("{}/matching_kp_image_{}.png".format(self.__viz_output_dir_bad_kp, self.__viz_img_idx_bad_kp), matching_kp_image)
+                np.savetxt("{}/relative_orientation_5_angles_{}.txt".format(self.__viz_output_dir_bad_kp, self.__viz_img_idx_bad_kp), relative_5_angles)
 
-                self.__viz_img_idx += 1
+                self.__viz_img_idx_bad_kp += 1
+
+        if abs(phi1) <= 0.5 and abs(phi2) <= 0.5 and self.__viz_img_idx_good_kp <= viz_good_matching_kp:
+
+            relative_5_angles = [omega1, phi1, kappa1, omega2, phi2, kappa2]
+            _mask = np.squeeze(mask)
+            kp_image, matching_kp_image = self.__draw_keypoints_on_image(left_image, kp_left, _mask, right_image, kp_right, _mask, visualize=False)
+
+            if self.__viz_output_dir is not None:
+
+                cv2.imwrite("{}/kp_image_{}.png".format(self.__viz_output_dir_good_kp, self.__viz_img_idx_good_kp), kp_image)
+                cv2.imwrite("{}/matching_kp_image_{}.png".format(self.__viz_output_dir_good_kp, self.__viz_img_idx_good_kp), matching_kp_image)
+                np.savetxt("{}/relative_orientation_5_angles_{}.txt".format(self.__viz_output_dir_good_kp, self.__viz_img_idx_good_kp), relative_5_angles)
+
+                self.__viz_img_idx_good_kp += 1
 
         return omega1, phi1, kappa1, omega2, phi2, kappa2, angles[0], angles[1], angles[2], relative_translation[0][0], \
             relative_translation[1][0], relative_translation[2][0]
@@ -343,7 +370,8 @@ class RelativeStereoComputation(object):
         
         return stats
 
-    def compute_rotation_stereo_sequence_5_angles(self, left_image_dir: str, right_image_dir: str, start : int, step : int, num_samples: int) -> List:
+    def compute_rotation_stereo_sequence_5_angles(self, left_image_dir: str, right_image_dir: str, start : int, step : int, num_samples: int,\
+                                                  viz_good_kp_matching: int) -> List:
         
         stats = []
 
@@ -361,7 +389,7 @@ class RelativeStereoComputation(object):
                 left_image = cv2.imread(left_image_path)
                 right_image = cv2.imread(right_image_path)
 
-                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image)
+                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image, viz_good_matching_kp=viz_good_kp_matching)
                 print("{} : {}".format(image_id, euler_angle))
                 stats.append(euler_angle)
 
@@ -384,7 +412,7 @@ class RelativeStereoComputation(object):
                 left_image = cv2.imread(left_image_path)
                 right_image = cv2.imread(right_image_path)
 
-                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image)
+                euler_angle = self.compute_relative_transformation_stereo_5_angles(left_image, right_image, viz_good_matching_kp=viz_good_kp_matching)
                 print("{} : {}".format(image_id, euler_angle))
                 stats.append(euler_angle)
 
@@ -418,7 +446,7 @@ class RelativeStereoStatistic(object):
         plt.legend()
         plt.show()
 
-    def draw_euler_statistic_5_angles_trend(self) -> None:
+    def draw_euler_statistic_5_angles_trend(self, threshold_value: float = 100) -> None:
         
         from sklearn.linear_model import LinearRegression
         
@@ -431,10 +459,10 @@ class RelativeStereoStatistic(object):
         list_phi_2 = self.__data[:, 4] + 0.218
         list_kappa_2 = self.__data[:, 5] - 0.072
 
-        threshold_value = 100
-
-        chosen_idx1 = np.logical_and(np.logical_and((list_omega_1 < threshold_value),(list_phi_1 < threshold_value)), (list_kappa_1 < threshold_value))
-        chosen_idx2 = np.logical_and(np.logical_and((list_omega_2 < threshold_value),(list_phi_2 < threshold_value)), (list_kappa_2 < threshold_value))
+        chosen_idx1 = np.logical_and(np.logical_and((np.abs(list_omega_1) < threshold_value),(np.abs(list_phi_1) < threshold_value)), \
+                                     (np.abs(list_kappa_1) < threshold_value))
+        chosen_idx2 = np.logical_and(np.logical_and((np.abs(list_omega_2) < threshold_value),(np.abs(list_phi_2) < threshold_value)), \
+                                     (np.abs(list_kappa_2) < threshold_value))
         chosen_idx = np.logical_and(chosen_idx1, chosen_idx2)
         idx = np.array(range(sum(chosen_idx)))
 
@@ -477,13 +505,14 @@ class RelativeStereoStatistic(object):
 
             plt.plot(idx, list_angle, label = name_angle, linestyle="--")
             plt.plot([0, len(idx)], [d, len(idx)*k + d], 'k-')
-            plt.title("The regression analysis for {} - k = {}, d = {}. Score = {}, sigma_0 = {}".format(name_angle, k, np.round(d, 3), np.round(score, 2), np.round(sigma_0, 2)))
+            plt.title("The regression analysis for {} - k = {}, d = {}. Score = {}, sigma_0 = {}"\
+                      .format(name_angle, k, np.round(d, 3), np.round(score, 2), np.round(sigma_0, 2)))
 
             plt.legend()
             plt.show()
             plt.close("all")
 
-    def draw_euler_statistic_5_angles(self, step: int = 2) -> None:
+    def draw_euler_statistic_5_angles(self, threshold_value: float = 100) -> None:
 
         idx = range(self.__data.shape[0]) 
         list_omega_1 = self.__data[:, 0] - 0.081
@@ -494,10 +523,10 @@ class RelativeStereoStatistic(object):
         list_phi_2 = self.__data[:, 4] + 0.218
         list_kappa_2 = self.__data[:, 5] - 0.072
 
-        threshold_value = 100
-
-        chosen_idx1 = np.logical_and(np.logical_and((list_omega_1 < threshold_value),(list_phi_1 < threshold_value)), (list_kappa_1 < threshold_value))
-        chosen_idx2 = np.logical_and(np.logical_and((list_omega_2 < threshold_value),(list_phi_2 < threshold_value)), (list_kappa_2 < threshold_value))
+        chosen_idx1 = np.logical_and(np.logical_and((np.abs(list_omega_1) < threshold_value),(np.abs(list_phi_1) < threshold_value)), \
+                                     (np.abs(list_kappa_1) < threshold_value))
+        chosen_idx2 = np.logical_and(np.logical_and((np.abs(list_omega_2) < threshold_value),(np.abs(list_phi_2) < threshold_value)), \
+                                     (np.abs(list_kappa_2) < threshold_value))
         chosen_idx = np.logical_and(chosen_idx1, chosen_idx2)
         idx = range(sum(chosen_idx))
 
@@ -551,7 +580,22 @@ class RelativeStereoStatistic(object):
         plt.plot(idx, list_transition_x, label = "X", linestyle="-.")
         plt.plot(idx, list_transition_y, label = "Y", linestyle="--")
         plt.plot(idx, list_transition_z, label = "Z", linestyle=":")
-        plt.title("Relative transition between the left and right camera. Unit: m")
+        plt.title("Relative transition between the left and right camera.")
+
+        plt.legend()
+        plt.show()
+        plt.close("all")
+
+        alpha_z = []
+
+        for x, y, z in zip(list_transition_x, list_transition_y, list_transition_z):
+            
+            alpha = np.arccos(z/np.sqrt(x**2 + y**2 + z**2))
+            alpha_degree = alpha*180/np.pi
+            alpha_z.append(alpha_degree)
+
+        plt.plot(idx, alpha_z, label = "cos_z", linestyle=":")
+        plt.title("Alpha of z. Unit: degree.")
 
         plt.legend()
         plt.show()
@@ -570,6 +614,7 @@ if __name__=="__main__":
     parser.add_argument("--step", type=int, default=10, help="Step between each sample in stereo sequence, using to compute relative orientation.")
     parser.add_argument("--num_samples", type=int, default=200, help="Number of stereo sample using for computing relative orientation")
     parser.add_argument("--saving_stats_file", type=str, default="stereo_relative_sequence.out", help="Name of file for saving relative orientation statistics.")
+    parser.add_argument("--viz_folder", type=str, default="viz", help="Visualization folder for keypoint matching process.")
 
     parser.add_argument("--on_image", action="store_true", help="Running on the stereo image pair.")
     parser.add_argument("--left_image", type=str, help="Path to the left image.")
@@ -580,11 +625,12 @@ if __name__=="__main__":
     args = parser.parse_args()
 
     if args.on_sequence:
-        relative_stereo_computation = RelativeStereoComputation(args.intrinsic_file, args.extrinsic_file, "viz")
-        stats = relative_stereo_computation.compute_rotation_stereo_sequence_5_angles(args.left_image_dir, args.right_image_dir, args.start, args.step, args.num_samples)
+        relative_stereo_computation = RelativeStereoComputation(args.intrinsic_file, args.extrinsic_file, args.viz_folder)
+        stats = relative_stereo_computation.compute_rotation_stereo_sequence_5_angles(args.left_image_dir, \
+                                                args.right_image_dir, args.start, args.step, args.num_samples, viz_good_kp_matching=10)
         np.savetxt(args.saving_stats_file, stats)
     
     if args.draw_report:
         drawer = RelativeStereoStatistic(args.saving_stats_file)
-        drawer.draw_euler_statistic_5_angles()
-        drawer.draw_euler_statistic_5_angles_trend()
+        drawer.draw_euler_statistic_5_angles(threshold_value=1.5)
+        drawer.draw_euler_statistic_5_angles_trend(threshold_value=1.5)
