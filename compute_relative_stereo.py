@@ -485,6 +485,14 @@ class RelativeStereoStatistic(object):
         dict_angle["kappa_1"] = list_kappa_1
         dict_angle["kappa_2"] = list_kappa_2
 
+        dict_angle_color = {}
+        dict_angle_color["omega_1"] = "blue"
+        dict_angle_color["omega_2"] = "red"
+        dict_angle_color["phi_1"] = "limegreen"
+        dict_angle_color["phi_2"] = "gold"
+        dict_angle_color["kappa_1"] = "cyan"
+        dict_angle_color["kappa_2"] = "darkviolet"
+
         for name_angle in dict_angle.keys():
             
             list_angle = dict_angle[name_angle]
@@ -503,7 +511,7 @@ class RelativeStereoStatistic(object):
             sigma_0 = np.sqrt(v.T @ v / (len(idx) - 2))[0][0]
             print(reg.score(X, y), sigma_0)
 
-            plt.plot(idx, list_angle, label = name_angle, linestyle="--")
+            plt.plot(idx, list_angle, label = name_angle, linestyle="--", color=dict_angle_color[name_angle])
             plt.plot([0, len(idx)], [d, len(idx)*k + d], 'k-')
             plt.title("The regression analysis for {} - k = {}, d = {}. Score = {}, sigma_0 = {}"\
                       .format(name_angle, k, np.round(d, 3), np.round(score, 2), np.round(sigma_0, 2)))
@@ -541,13 +549,13 @@ class RelativeStereoStatistic(object):
         print("mean omega1, phi1, kappa1", np.mean(list_omega_1), np.mean(list_phi_1), np.mean(list_kappa_1))
         print("mean omega2, phi2, kappa2", np.mean(list_omega_2), np.mean(list_phi_2), np.mean(list_kappa_2))
 
-        plt.plot(idx, list_omega_1, label = "Omega_1", linestyle="-.")
-        plt.plot(idx, list_phi_1, label = "Phi_1", linestyle="--")
-        plt.plot(idx, list_kappa_1, label = "Kappa_1", linestyle=":")
+        plt.plot(idx, list_omega_1, label = "Omega_1", linestyle="-.", color="blue")
+        plt.plot(idx, list_phi_1, label = "Phi_1", linestyle="--", color="limegreen")
+        plt.plot(idx, list_kappa_1, label = "Kappa_1", linestyle=":", color="cyan")
 
-        plt.plot(idx, list_omega_2, label = "Omega_2", linestyle="-.")
-        plt.plot(idx, list_phi_2, label = "Phi_2", linestyle="--")
-        plt.plot(idx, list_kappa_2, label = "Kappa_2", linestyle=":")
+        plt.plot(idx, list_omega_2, label = "Omega_2", linestyle="-.", color="red")
+        plt.plot(idx, list_phi_2, label = "Phi_2", linestyle="--", color="gold")
+        plt.plot(idx, list_kappa_2, label = "Kappa_2", linestyle=":", color="darkviolet")
 
         plt.title("The change of relative orientation between the left and right camera, compared to the calibrated parameters in the before calibration set. Unit: gon")
 
