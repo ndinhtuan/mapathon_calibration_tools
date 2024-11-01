@@ -19,6 +19,9 @@ class StereoRectification(object):
         # The below parameters are used in the mode, which only applies to one pair of stereo image
         self.__chosen_horizontal_lines = [] # List of chosen horizontal lines in the rectified image
         self.__rectified_stereo_img: np.ndarray = None
+
+        self.__left_camera_subdir_name = "left"
+        self.__right_camera_subdir_name = "right"
     
     # Using when the intrinsics and/or extrinsics file changed
     def load_stereo_camera_calibration(self, intrinsics_file: str, extrinsics_file: str) -> None:
@@ -62,39 +65,64 @@ class StereoRectification(object):
         return rectified_left_img, rectified_right_img
     
     # This function rectifies stereo pair in `src_dir` directory, the rectified result are saved into
-    # `dst_dir` directory. `src_dir` must include two sub-folder: "left_camera" and "right_camera" - 
+    # `dst_dir` directory. `src_dir` must include two sub-folder: "left" and "right" - 
     # containing the image taken from the left and the right camera
-    def rectify_stereo_directory(self, src_dir: str, dst_dir: str) -> None:
+    def rectify_stereo_directory(self, src_dir: str, dst_dir: str, sampling_rate: int = None) -> None:
 
-        assert os.path.isdir(os.path.join(src_dir, "left_camera")) and os.path.isdir(os.path.join(src_dir, "right_camera")) \
-            , "{} must contain two sub-folder: left_camera and right_camera".format(src_dir)
+        assert os.path.isdir(os.path.join(src_dir, self.__left_camera_subdir_name)) and os.path.isdir(os.path.join(src_dir, self.__right_camera_subdir_name)) \
+            , "{} must contain two sub-folder: {} and {}".format(src_dir, self.__left_camera_subdir_name, self.__right_camera_subdir_name)
 
-        assert not os.path.isdir(os.path.join(dst_dir, "left_camera")) and not os.path.isdir(os.path.join(dst_dir, "right_camera")) \
+        assert not os.path.isdir(os.path.join(dst_dir, self.__left_camera_subdir_name)) and not os.path.isdir(os.path.join(dst_dir, self.__right_camera_subdir_name)) \
             , "{} folder is not empty. Please check and clean the destination folder.".format(dst_dir)
 
-        os.makedirs(os.path.join(dst_dir, "left_camera"))
-        os.makedirs(os.path.join(dst_dir, "right_camera"))
+        os.makedirs(os.path.join(dst_dir, self.__left_camera_subdir_name))
+        os.makedirs(os.path.join(dst_dir, self.__right_camera_subdir_name))
 
         if self.__img_size is None:
-            self.set_image_size(os.path.join(src_dir, "left_camera"))
+            self.set_image_size(os.path.join(src_dir, self.__left_camera_subdir_name))
 
-        list_left_img_path = glob.glob("{}/*".format(os.path.join(src_dir, "left_camera")))
+        list_left_img_path = glob.glob("{}/*".format(os.path.join(src_dir, self.__left_camera_subdir_name)))
 
-        for left_img_path in list_left_img_path:
-            name_img = left_img_path.split("/")[-1]
-            right_img_path = os.path.join(src_dir, "right_camera", name_img)
+        if sampling_rate is None:
 
-            if not os.path.isfile(right_img_path):
-                print("{} does not exists.".format(right_img_path))
-                continue
+            for left_img_path in list_left_img_path:
+                name_img = left_img_path.split("/")[-1]
+                right_img_path = os.path.join(src_dir, self.__right_camera_subdir_name, name_img)
 
-            left_img = cv2.imread(left_img_path)
-            right_img = cv2.imread(right_img_path)
+                if not os.path.isfile(right_img_path):
+                    print("{} does not exists.".format(right_img_path))
+                    continue
 
-            rectified_left_img, rectified_right_img = self.rectify_stereo_image(left_img, right_img)
+                left_img = cv2.imread(left_img_path)
+                right_img = cv2.imread(right_img_path)
 
-            cv2.imwrite(os.path.join(dst_dir, "left_camera", name_img), rectified_left_img)
-            cv2.imwrite(os.path.join(dst_dir, "right_camera", name_img), rectified_right_img)
+                rectified_left_img, rectified_right_img = self.rectify_stereo_image(left_img, right_img)
+
+                cv2.imwrite(os.path.join(dst_dir, self.__left_camera_subdir_name, name_img), rectified_left_img)
+                cv2.imwrite(os.path.join(dst_dir, self.__right_camera_subdir_name, name_img), rectified_right_img)
+        else:
+            curr_id = 0
+
+            while True:
+
+                name_img = "%05d.png"%curr_id
+                left_img_path = os.path.join(src_dir, self.__left_camera_subdir_name, name_img)
+                right_img_path = os.path.join(src_dir, self.__right_camera_subdir_name, name_img)
+
+                if not os.path.isfile(right_img_path):
+                    print("{} does not exists ... Or rectifying on the sequence finishes.".format(right_img_path))
+                    break
+
+                left_img = cv2.imread(left_img_path)
+                right_img = cv2.imread(right_img_path)
+
+                rectified_left_img, rectified_right_img = self.rectify_stereo_image(left_img, right_img)
+
+                cv2.imwrite(os.path.join(dst_dir, self.__left_camera_subdir_name, name_img), rectified_left_img)
+                cv2.imwrite(os.path.join(dst_dir, self.__right_camera_subdir_name, name_img), rectified_right_img)
+
+                print("Image {} rectified.".format(name_img))
+                curr_id += sampling_rate
 
     # Set value for self.__img_size by reading image content in one image folder
     def set_image_size(self, img_dir: str) -> None:
@@ -197,6 +225,7 @@ if __name__=="__main__":
     parser.add_argument("--extrinsic_file", type=str, default="./calibration_data/extrinsics.txt", help="Path to the extrinsic parameter of stereo camera.")
     parser.add_argument("--src_raw_folder", type=str, default="", help="Path to the raw folder containing left and right raw image.")
     parser.add_argument("--dst_folder", type=str, default="", help="Path to the folder will save the left and right rectified image.")
+    parser.add_argument("--sampling_rate", type=int, default=25, help="Specify sampling rate for the sequence of image.")
 
     parser.add_argument("--on_image", action="store_true", help="Running rectification on a pair of stereo image.")
     parser.add_argument("--left_image", type=str, default="", help="Path to the left image, need to specify if --on_image is used.")
@@ -214,4 +243,4 @@ if __name__=="__main__":
         else:
             stereo_rectification.draw_rectified_stereo_pair(args.left_image, args.right_image, scale_ratio=0.8, horizontal_positions_file="position.out")
     else:
-        stereo_rectification.rectify_stereo_directory(args.src_raw_folder, args.dst_folder)
+        stereo_rectification.rectify_stereo_directory(args.src_raw_folder, args.dst_folder, args.sampling_rate)
